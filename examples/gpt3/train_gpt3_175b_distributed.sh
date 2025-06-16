@@ -4,7 +4,7 @@
 
 export CUDA_DEVICE_MAX_CONNECTIONS=1
 
-GPUS_PER_NODE=8
+GPUS_PER_NODE=1
 # Change for multinode config
 MASTER_ADDR=localhost
 MASTER_PORT=6000
@@ -12,11 +12,11 @@ NUM_NODES=1
 NODE_RANK=0
 WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 
-CHECKPOINT_PATH=$1 #<Specify path>
-TENSORBOARD_LOGS_PATH=$2 #<Specify path>
-VOCAB_FILE=$3 #<Specify path to file>/gpt2-vocab.json
-MERGE_FILE=$4 #<Specify path to file>/gpt2-merges.txt
-DATA_PATH=$5 #<Specify path and file prefix>_text_document
+CHECKPOINT_PATH=/users/jimmys2/ckpt
+TENSORBOARD_LOGS_PATH=/users/jimmys2/tensorboard
+VOCAB_FILE=/users/jimmys2/oscar/gpt2-vocab.json
+MERGE_FILE=/users/jimmys2/oscar/gpt2-merges.txt
+DATA_PATH=/users/jimmys2/meg-gpt2_text_document
 
 DISTRIBUTED_ARGS=(
     --nproc_per_node $GPUS_PER_NODE 
@@ -26,51 +26,50 @@ DISTRIBUTED_ARGS=(
 )
 
 GPT_MODEL_ARGS=(
-    --num-layers 96 
-    --hidden-size 12288 
-    --num-attention-heads 96 
-    --seq-length 2048 
-    --max-position-embeddings 2048 
+    --num-layers 1 
+    --hidden-size 512 
+    --num-attention-heads 8 
+    --seq-length 256
+    --max-position-embeddings 1024 
     --attention-backend auto # Can use (flash/fused/unfused/local)
 )
 
 TRAINING_ARGS=(
-    --micro-batch-size 1 
-    --global-batch-size 1536 
-    --rampup-batch-size 16 16 5859375 
-    --train-iters 500000 
+    --micro-batch-size 4 
+    --global-batch-size 64 
+    --train-iters 1000 
     --weight-decay 0.1 
     --adam-beta1 0.9 
     --adam-beta2 0.95 
     --init-method-std 0.006 
     --clip-grad 1.0 
-    --fp16
     --lr 6.0e-5 
     --lr-decay-style cosine 
     --min-lr 6.0e-6
-    --lr-warmup-fraction .001 
-    --lr-decay-iters 430000 
+    --lr-warmup-fraction .01 
+    --lr-decay-iters 860 
+    --transformer-impl local
 )
 
 MODEL_PARALLEL_ARGS=(
-	--tensor-model-parallel-size 8 
-	--pipeline-model-parallel-size 16 
+	--tensor-model-parallel-size 1 
+	--pipeline-model-parallel-size 1 
 )
 
 DATA_ARGS=(
     --data-path $DATA_PATH 
     --vocab-file $VOCAB_FILE 
     --merge-file $MERGE_FILE 
-    --split 949,50,1
+    --split 98,2,0
 )
 
 EVAL_AND_LOGGING_ARGS=(
-    --log-interval 100
-    --save-interval 10000 
+    --log-interval 1
+    --save-interval 1000 
     --eval-interval 1000 
     --save $CHECKPOINT_PATH 
     --load $CHECKPOINT_PATH 
-    --eval-iters 10
+    --eval-iters 40
     --tensorboard-dir $TENSORBOARD_LOGS_PATH 
 )
 

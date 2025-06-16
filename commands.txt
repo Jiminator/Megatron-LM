@@ -1,0 +1,304 @@
+    1  sudo apt update -y
+    2  sudo apt upgrade  -y
+    3  sudo apt install nvidia-driver-535 -y
+    4  sudo apt install gcc
+    5  wget https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux.run
+    6  sudo sh cuda_11.8.0_520.61.05_linux.run --toolkit --silent --override
+    7  source ~/.bashrc
+    8  nvcc -V
+    9  nvidia-smi
+   10  cat ~/.bash_history
+   11  wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.0-1_all.deb
+   12  sudo dpkg -i cuda-keyring_1.0-1_all.deb
+   13  sudo apt update
+   14  sudo apt install libcudnn8=8.9.7.29-1+cuda11.8 libcudnn8-dev=8.9.7.29-1+cuda11.8
+   15  sudo apt install libnccl2=2.15.5-1+cuda11.8 libnccl-dev=2.15.5-1+cuda11.8
+   16  echo 'export CUDA_HOME=/usr/local/cuda-11.8' >> ~/.bashrc
+   17  echo 'export PATH=$CUDA_HOME/bin:$PATH' >> ~/.bashrc
+   18  echo 'export LD_LIBRARY_PATH=$CUDA_HOME/lib64:/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH' >> ~/.bashrc
+   19  echo 'export NCCL_INCLUDE_DIR=/usr/include' >> ~/.bashrc
+   20  echo 'export NCCL_LIB_DIR=/lib/x86_64-linux-gnu' >> ~/.bashrc
+   21  echo 'export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6' >> ~/.bashrc
+   22  source ~/.bashrc
+   23  mkdir -p ~/miniconda3
+   24  wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
+   25  bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
+   26  rm ~/miniconda3/miniconda.sh
+   27  echo ". /users/${USER}/miniconda3/etc/profile.d/conda.sh" >> ~/.bashrc
+   28  . /users/${USER}/miniconda3/etc/profile.d/conda.sh
+   29  ~/miniconda3/bin/conda create -n llm python=3.11 -y
+   30  conda activate llm
+   31  pip3 install --upgrade pip
+   32  nvcc -V
+   33  git clone https://github.com/NVIDIA/Megatron-LM.git
+   34  conda deactivate
+   35  git clone https://github.com/Jiminator/Metis.git
+   36  ls
+   37  cd Metis
+   38  git checkout LR
+   39  ls
+   40  ~/miniconda3/bin/conda create -n metis python=3.11 -y
+   41  conda activate metis
+   42  pip install -r requirements.txt
+   43  python3 gen_synth_data.py 10 128
+   44  source ./cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/Users/jimmy/Desktop/UIUC/Research/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=False CSV_PATH="result.csv"
+   45  ls
+   46  cd scripts/
+   47  source ./cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/Users/jimmy/Desktop/UIUC/Research/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=False CSV_PATH="result.csv"
+   48  cd ..
+   49  mkdir logs
+   50  source ./cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/Users/jimmy/Desktop/UIUC/Research/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=False CSV_PATH="result.csv"
+   51  source ./scripts/cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/Users/jimmy/Desktop/UIUC/Research/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=False CSV_PATH="result.csv"
+   52  ls
+   53  cd logs/
+   54  nano GPT_1.5B.log
+   55  cd ..
+   56  rm -rf logs/
+   57  nano cost_het_cluster.py 
+   58  nano scripts/cost_het_cluster.sh 
+   59  mkdir --hlep
+   60  mkdir --help
+   61  ls
+   62  source ./scripts/cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/Users/jimmy/Desktop/UIUC/Research/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=False CSV_PATH="result.csv"
+   63  cd scripts/
+   64  ls
+   65  cd ..
+   66  ls -ld "$LOG_PATH"
+   67  source ./scripts/cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/Users/jimmy/Desktop/UIUC/Research/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=False CSV_PATH=result.csv
+   68  nano scripts/cost_het_cluster.sh 
+   69  source ./scripts/cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/Users/jimmy/Desktop/UIUC/Research/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=False CSV_PATH=result.csv
+   70  nano scripts/cost_het_cluster.sh 
+   71  source ./scripts/cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/Users/jimmy/Desktop/UIUC/Research/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=False CSV_PATH=result.csv
+   72  nano scripts/cost_het_cluster.sh 
+   73  source ./scripts/cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/Users/jimmy/Desktop/UIUC/Research/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=False CSV_PATH=result.csv
+   74  mkdir -p $LOG_PATH
+   75  export HOME_DIR
+   76  echo $HOME_DIR
+   77  mkdir $LOG_PATH
+   78  ls
+   79  mkdir $LOG_PATH
+   80  pwd
+   81  git status
+   82  git diff scripts/cost_het_cluster.sh
+   83  nano scripts/cost_het_cluster.sh 
+   84  git diff scripts/cost_het_cluster.sh
+   85  source ./scripts/cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/users/jimmys2/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=False CSV_PATH=result.csv
+   86  nano logs/
+   87  cd logs/
+   88  ls
+   89  nano GPT_1.5B.log 
+   90  cd ..
+   91  ls
+   92  source ./scripts/cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/users/jimmys2/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=False CSV_PATH="result.csv"
+   93  cd scripts/
+   94  ls
+   95  cd ..
+   96  ls logs/
+   97  find . -name "result.csv"
+   98  ls logs/
+   99  cat logs/GPT_1.5B.log 
+  100  source ./scripts/cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/users/jimmys2/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=False CSV_PATH="result.csv"
+  101  source ./scripts/cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/users/jimmys2/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=False CSV_PATH=result.csv
+  102  nano cost_het_cluster.py 
+  103  nano scripts/cost_het_cluster.py
+  104  nano scripts/cost_het_cluster.sh 
+  105  source ./scripts/cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/users/jimmys2/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=False CSV_PATH=result.csv
+  106  ls logs/
+  107  source ./scripts/cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/users/jimmys2/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=True CSV_PATH=result.csv
+  108  cd ..
+  109  rm -rf Metis/
+  110  git clone https://github.com/Jiminator/Metis.git
+  111  cd Metis/
+  112  pip install -r requirements.txt
+  113  python3 gen_synth_data.py 10 128
+  114  source ./scripts/cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/Users/jimmy/Desktop/UIUC/Research/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=False CSV_PATH=result.csv
+  115  source ./scripts/cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/users/jimmys2/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=False CSV_PATH=result.csv
+  116  pwd
+  117  git checkout LR
+  118  source ./scripts/cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/users/jimmys2/Metis' MAX_PROFILED_TP=128 MAX_PROFILED_BATCH_SIZE=128 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=128 GRAPH=False USE_CACHE=False UTILITY_STRATEGY=baseline TOLERANCE_STRATEGY=fixed DEBUG=False FULL=False CSV_PATH=result.csv
+  119  ls logs/
+  120  conda activate llm
+  121  ls
+  122  cd Megatron-LM/
+  123  ls
+  124  pip install -e .
+  125  cd ..
+  126  git clone https://github.com/ninja-build/ninja.git && cd ninja
+  127  git checkout release
+  128  cat README.md
+  129  ./configure.py --bootstrap
+  130  ls
+  131  build.ninja
+  132  ninja
+  133  cd ..
+  134  git clone https://github.com/NVIDIA/apex
+  135  cd apex
+  136  pip3 --version
+  137  tmux
+  138  exit
+  139  tmux ls
+  140  tmux attach -t 0
+  141  conda activate llm
+  142  cd Megatron-LM/
+  143  PYTHONPATH=$PYTHON_PATH:./megatron torchrun --nproc-per-node 1 examples/run_simple_mcore_train_loop.py
+  144  nano examples/run_simple_mcore_train_loop.py
+  145  PYTHONPATH=$PYTHON_PATH:./megatron torchrun --nproc-per-node 1 examples/run_simple_mcore_train_loop.py
+  146  nano examples/run_simple_mcore_train_loop.py
+  147  PYTHONPATH=$PYTHON_PATH:./megatron torchrun --nproc-per-node 1 examples/run_simple_mcore_train_loop.py
+  148  cat examples/run_simple_mcore_train_loop.py
+  149  nano examples/run_simple_mcore_train_loop_1.py
+  150  PYTHONPATH=$PYTHON_PATH:./megatron torchrun --nproc-per-node 1 examples/run_simple_mcore_train_loop_1.py
+  151  rm examples/run_simple_mcore_train_loop_1.py
+  152  nano examples/run_simple_mcore_train_loop_1.py
+  153  PYTHONPATH=$PYTHON_PATH:./megatron torchrun --nproc-per-node 1 examples/run_simple_mcore_train_loop_1.py
+  154  cd ..
+  155  echo $CUDA_HOME
+  156  mkdir -p ./oscar
+  157  cd ./oscar
+  158  wget https://huggingface.co/bigscience/misc-test-data/resolve/main/stas/oscar-1GB.jsonl.xz
+  159  wget https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-vocab.json
+  160  wget https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merges.txt
+  161  cd ..
+  162  cd megaton
+  163  python3 Megatron-LM/tools/preprocess_data.py     --input ./oscar/oscar-1GB.jsonl     --output-prefix meg-gpt2     --vocab-file ./oscar/gpt2-vocab.json     --tokenizer-type GPT2BPETokenizer     --merge-file ./oscar/gpt2-merges.txt     --append-eod     --workers 8
+  164  ls
+  165  cd oscar/
+  166  ls
+  167  xz -d oscar-1GB.jsonl.xz
+  168  cd ..
+  169  python3 Megatron-LM/tools/preprocess_data.py     --input ./oscar/oscar-1GB.jsonl     --output-prefix meg-gpt2     --vocab-file ./oscar/gpt2-vocab.json     --tokenizer-type GPT2BPETokenizer     --merge-file ./oscar/gpt2-merges.txt     --append-eod     --workers 8
+  170  cd Megatron-LM/
+  171  ls
+  172  cd examples/
+  173  ls
+  174  cd gpt3/
+  175  ls
+  176  nano train_gpt3_175b_distributed.sh 
+  177  cat train_gpt3_175b_distributed.sh 
+  178  nano train_gpt3_175b_distributed.sh 
+  179  pwd
+  180  nano train_gpt3_175b_distributed.sh 
+  181  cd ..
+  182  ls
+  183  mkdir ckpt
+  184  mkdir tensorboard
+  185  bash Megatron-LM/examples/gpt3/train_gpt3_175b_distributed.sh 
+  186  cd Megatron-LM/
+  187  nano examples/gpt3/train_gpt3_175b_distributed.sh 
+  188  bash examples/gpt3/train_gpt3_175b_distributed.sh 
+  189  nano examples/gpt3/train_gpt3_175b_distributed.sh 
+  190  bash examples/gpt3/train_gpt3_175b_distributed.sh 
+  191  nano examples/gpt3/train_gpt3_175b_distributed.sh 
+  192  bash examples/gpt3/train_gpt3_175b_distributed.sh 
+  193  export TORCHDYNAMO_DISABLE=1
+  194  bash examples/gpt3/train_gpt3_175b_distributed.sh 
+  195  nano examples/gpt3/train_gpt3_175b_distributed.sh 
+  196  cat examples/gpt3/train_gpt3_175b_distributed.sh 
+  197  python3 pretrain_gpt.py --help
+  198  nano examples/gpt3/train_gpt3_175b_distributed.sh 
+  199  bash examples/gpt3/train_gpt3_175b_distributed.sh 
+  200  nano examples/gpt3/train_gpt3_175b_distributed.sh 
+  201  bash examples/gpt3/train_gpt3_175b_distributed.sh 
+  202  ls
+  203  cd ..
+  204  ls
+  205  cd tensorboard/
+  206  ls
+  207  cd ..
+  208  cd ckpt/
+  209  ls
+  210  nano latest_checkpointed_iteration.txt 
+  211  nvidia-smi
+  212  cd ..
+  213  bash examples/gpt3/train_gpt3_175b_distributed.sh > output.txt
+  214  cd Megatron-LM/
+  215  bash examples/gpt3/train_gpt3_175b_distributed.sh > output.txt
+  216  nano output.txt 
+  217  cat output.txt
+  218  cd ..
+  219  ls
+  220  cd tensorboard/
+  221  cd ..
+  222  cd ckpt/
+  223  ls
+  224  cd ..
+  225  rm -rf ckpt
+  226  mkdir ckpt
+  227  cd Megatron-LM/
+  228  bash examples/gpt3/train_gpt3_175b_distributed.sh > output.txt
+  229  nano output.txt 
+  230  cat output.txt 
+  231  clear
+  232  cat output.txt 
+  233  exit
+  234  cat ~/.bash_history 
+  235  cd Megatron-LM/
+  236  history > commands.txt
+  237  ls
+  238  git status
+  239  rm examples/run_simple_mcore_train_loop_1.py 
+  240  git restore examples/run_simple_mcore_train_loop.py
+  241  git status
+  242  nano output.txt 
+  243  cd ..
+  244  ls
+  245  cd ninja/
+  246  git status
+  247  cd ..
+  248  git apex/
+  249  ls
+  250  cd apex/
+  251  ls
+  252  git status
+  253  cd ..
+  254  ls output.txt 
+  255  nano output.txt 
+  256  rm output.txt 
+  257  conda activate llm
+  258  cd Megatron-LM/
+  259  bash examples/gpt3/train_gpt3_175b_distributed.sh > output2.txt
+  260  ls
+  261  nano examples/gpt3/train_gpt3_175b_distributed.sh
+  262  bash examples/gpt3/train_gpt3_175b_distributed.sh > output2.txt
+  263  cat examples/gpt3/train_gpt3_175b_distributed.sh
+  264  ls
+  265  cat commands.txt 
+  266  python3 pretrain_gpt.py --help
+  267  ls
+  268  nano examples/gpt3/train_gpt3_175b_distributed.sh 
+  269  bash examples/gpt3/train_gpt3_175b_distributed.sh > output2.txt
+  270  cat commands.txt 
+  271  nano examples/gpt3/train_gpt3_175b_distributed.sh 
+  272  bash examples/gpt3/train_gpt3_175b_distributed.sh > output2.txt
+  273  nano examples/gpt3/train_gpt3_175b_distributed.sh 
+  274  bash examples/gpt3/train_gpt3_175b_distributed.sh > output2.txt
+  275  nano examples/gpt3/train_gpt3_175b_distributed.sh 
+  276  nano output.txt 
+  277  export TORCHDYNAMO_DISABLE=
+  278  export TORCHDYNAMO_DISABLE=1
+  279  export CUDA_DEVICE_MAX_CONNECTIONS=1
+  280  bash examples/gpt3/train_gpt3_175b_distributed.sh > output2.txt
+  281  nano output2.txt 
+  282  ls
+  283  cd ..
+  284  rm -rf ckpt/
+  285  mkdir ckpt
+  286  source ~/.bashrc
+  287  echo $TORCHDYNAMO_DISABLE=
+  288  echo $TORCHDYNAMO_DISABLE
+  289  unset $TORCHDYNAMO_DISABLE
+  290  echo $TORCHDYNAMO_DISABLE
+  291  unset TORCHDYNAMO_DISABLE
+  292  echo $TORCHDYNAMO_DISABLE
+  293  source ~/.bashrc
+  294  conda activate llm
+  295  cd Me
+  296  cd Megatron-LM/
+  297  nano examples/gpt3/train_gpt3_175b_distributed.sh 
+  298  bash examples/gpt3/train_gpt3_175b_distributed.sh > output2.txt
+  299  nano output.txt 
+  300  nano output2.txt 
+  301  export TORCHDYNAMO_DISABLE=1 
+  302  bash examples/gpt3/train_gpt3_175b_distributed.sh > output2.txt
+  303  nano output2.txt 
+  304  history > commands.txt
