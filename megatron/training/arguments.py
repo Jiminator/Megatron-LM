@@ -36,6 +36,10 @@ from megatron.training.activations import squared_relu
 from megatron.training.utils import get_device_arch_version, update_use_dist_ckpt, print_rank_0
 from megatron.core.msc_utils import MultiStorageClientFeature
 
+from megatron.core.quantization.utils import (
+    kitchen_quantization_recipe_config,
+    load_quantization_recipe,
+)
 
 def add_megatron_arguments(parser: argparse.ArgumentParser):
     """"Add Megatron-LM arguments to the given parser."""
@@ -71,6 +75,7 @@ def add_megatron_arguments(parser: argparse.ArgumentParser):
     parser = _add_config_logger_args(parser)
     parser = _add_rerun_machine_args(parser)
     parser = _add_msc_args(parser)
+    parser = _add_kitchen_quantization_arguments(parser)
     parser = _add_sft_args(parser)
 
     return parser
@@ -331,7 +336,7 @@ def validate_args(args, defaults={}):
                 LocalCheckpointManager
         except ModuleNotFoundError as e:
             raise RuntimeError('nvidia_resiliency_ext is required for local checkpointing') from e
-        
+
     # validate model config args from heterogeneous config (if provided).
     validate_model_config_args_from_heterogeneous_config(args)
 
@@ -343,6 +348,21 @@ def validate_args(args, defaults={}):
         assert args.ckpt_format == "torch", \
             "legacy model format only supports the 'torch' checkpoint format."
     update_use_dist_ckpt(args)
+
+    # Deprecation warning for encoder pipeline parallelism
+    if args.encoder_pipeline_model_parallel_size > 0 or args.encoder_tensor_model_parallel_size > 0:
+        warnings.warn(
+            "Encoder-specific pipeline parallelism functionality is deprecated and will be removed in core_r0.14.0. "
+            "This includes the parameters 'encoder_tensor_model_parallel_size' and 'encoder_pipeline_model_parallel_size', "
+            "as well as all associated encoder pipeline parallel logic and infrastructure. "
+            "This functionality is being replaced by the new 'orthotope' parallelism management system, which provides "
+            "a more general and flexible approach to handling complex parallelism configurations including encoder-decoder models. "
+            "Please refrain from building new features or dependencies on encoder pipeline parallelism as this entire "
+            "capability will not be supported in future releases. For migration guidance and information on the orthotope "
+            "system, please refer to the Megatron-LM documentation.",
+            DeprecationWarning,
+            stacklevel=2
+        )
 
     if args.encoder_pipeline_model_parallel_size == 0 and args.num_experts == 0:
         assert args.encoder_tensor_model_parallel_size == args.tensor_model_parallel_size,  "If non-MOE encoder shares first decoder pipeline rank it must have the same TP as the decoder."
@@ -620,8 +640,8 @@ def validate_args(args, defaults={}):
     args.exp_avg_sq_dtype = map_dtype(args.exp_avg_sq_dtype)
 
     if args.fp8_param_gather:
-        assert args.use_distributed_optimizer or args.use_torch_fsdp2, \
-            '--fp8-param-gather only supported with distributed optimizer or torch fsdp2'
+        assert args.use_distributed_optimizer or args.use_torch_fsdp2 or not torch.is_grad_enabled(), \
+            '--fp8-param-gather only supported with distributed optimizer, torch fsdp2, or inference mode'
 
     if args.use_custom_fsdp:
         assert args.use_distributed_optimizer, \
@@ -1137,6 +1157,17 @@ def core_transformer_config_from_args(args, config_class=None):
         kw_args['cp_comm_type'] = args.cp_comm_type[0]
     if args.is_hybrid_model:
         kw_args['is_hybrid_model'] = args.is_hybrid_model
+
+    # handle quantization config
+    # NOTE: Kitchen arguments are only added to the namespace when
+    # Kitchen library is available.
+    if hasattr(args, "kitchen_config_file") and args.kitchen_config_file is not None:
+        kw_args['use_kitchen'] = True
+        kw_args['quant_recipe'] = load_quantization_recipe(args.kitchen_config_file)
+    elif hasattr(args, 'kitchen_recipe_number') and args.kitchen_recipe_number is not None:
+        kw_args['use_kitchen'] = True
+        kw_args['quant_recipe'] = kitchen_quantization_recipe_config(args.kitchen_recipe_number)
+
 
     # Return config.
     return config_class(**kw_args)
@@ -2212,12 +2243,14 @@ def _add_distributed_args(parser):
     group.add_argument('--tensor-model-parallel-size', type=int, default=1,
                        help='Degree of tensor model parallelism.')
     group.add_argument('--encoder-tensor-model-parallel-size', type=int, default=0,
-                       help='Degree of tensor model parallelism for the encoder.')
+                       help='DEPRECATED (will be removed in core_r0.14.0): Use orthotope parallelism management instead. '
+                       'Degree of tensor model parallelism for the encoder.')
     group.add_argument('--pipeline-model-parallel-size', type=int, default=1,
                        help='Degree of pipeline model parallelism.')
     group.add_argument('--encoder-pipeline-model-parallel-size', type=int, default=0,
-                       help=('Degree of pipeline model parallelism in the encoder. This is '
-                             'independent of the amount of pipeline in the decoder.'))
+                       help='DEPRECATED (will be removed in core_r0.14.0): Use orthotope parallelism management instead. '
+                           'Degree of pipeline model parallelism in the encoder. This is '
+                             'independent of the amount of pipeline in the decoder.')
     group.add_argument('--pipeline-model-parallel-split-rank',
                        type=int, default=None,
                        help=('Rank where encoder and decoder should be split. '
@@ -2922,6 +2955,39 @@ def _add_msc_args(parser):
     group.add_argument('--disable-msc', default=True, action='store_false', dest='enable_msc',
                        help='Disable the usage of Multi-Storage Client (MSC) in Megatron Core.')
     return parser
+
+def _add_kitchen_quantization_arguments(parser: argparse.ArgumentParser):
+    """Add quant-specific arguments to the main parser
+
+    If kitchen isn't available, nothing to do here, return unchanged parser
+    """
+    try:
+        from megatron.core.extensions.kitchen import KitchenSpecProvider
+
+        have_kitchen = True
+    except (ImportError, ModuleNotFoundError):
+        have_kitchen = False
+
+    if have_kitchen:
+        group = parser.add_argument_group(title="kitchen")
+        recipe_or_config_group = group.add_mutually_exclusive_group(required=False)
+        recipe_or_config_group.add_argument(
+            '--kitchen-config-file',
+            type=str,
+            default=None,
+            help="Use the config .yaml file at the specified location to "
+            "configure kitchen quantization.",
+        )
+        recipe_or_config_group.add_argument(
+            '--kitchen-recipe-number',
+            type=int,
+            default=None,
+            help="Use a default kitchen recipe for all layers as defined by QAT_PARAMS index",
+        )
+        return parser
+
+    else:
+        return parser
 
 def _add_sft_args(parser):
     group = parser.add_argument_group(title='sft')

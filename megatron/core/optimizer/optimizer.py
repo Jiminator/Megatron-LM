@@ -288,7 +288,10 @@ class MegatronOptimizer(ABC):
 
     @abstractmethod
     def sharded_state_dict(
-        self, model_sharded_state_dict: ShardedStateDict, is_loading: bool = False
+        self,
+        model_sharded_state_dict: ShardedStateDict,
+        is_loading: bool = False,
+        metadata: Optional[dict] = None,
     ) -> ShardedStateDict:
         """Builds sharded state dict for the optimizer, based on model's sharded state dict.
 
@@ -296,6 +299,7 @@ class MegatronOptimizer(ABC):
             model_sharded_state_dict (ShardedStateDict): sharded state dict of the model
             is_loading (bool, optional): flag indicating whether the state dict will be
                 used to save or load the optimizer state. Defaults to False.
+            metadata (dict, optional): metadata controlling the sharded_state_dict logic.
 
         Returns: optimizer sharded state dict
         """
@@ -340,14 +344,20 @@ class MegatronOptimizer(ABC):
         """
         # Define groups order that is needed in the current optimizer (coming from runtime)
         needed_groups = [
-            tuple(g[key] for key in param_group_identifier_keys) for g in current_groups
+            # NeMo may have different key for required fields, e.g., "wd_mult" to "pre_wd_mult"
+            tuple(g[key] if key in g else g[f"pre_{key}"] for key in param_group_identifier_keys)
+            for g in current_groups
         ]
 
         # Keep state_dict param group order since groups are LocalNonpersistentObject
         # and their order is determined at runtime, not from the checkpoint.
         params_in_state_dict_order = [g['params'] for g in state_dict_groups]
         loaded_groups_map = {
-            tuple(group[key] for key in param_group_identifier_keys): group
+            tuple(
+                # NeMo may have different key for required fields, e.g., "wd_mult" to "pre_wd_mult"
+                group[key] if key in group else group[f"pre_{key}"]
+                for key in param_group_identifier_keys
+            ): group
             for group in state_dict_groups
         }
 
@@ -729,7 +739,10 @@ class Float16OptimizerWithFloat16Params(MixedPrecisionOptimizer):
         return state_dict
 
     def sharded_state_dict(
-        self, model_sharded_state_dict: ShardedStateDict, is_loading: bool = False
+        self,
+        model_sharded_state_dict: ShardedStateDict,
+        is_loading: bool = False,
+        metadata: Optional[dict] = None,
     ):
 
         if is_loading:
@@ -940,7 +953,10 @@ class FP32Optimizer(MegatronOptimizer):
         self.optimizer.load_state_dict(state_dict)
 
     def sharded_state_dict(
-        self, model_sharded_state_dict: ShardedStateDict, is_loading: bool = False
+        self,
+        model_sharded_state_dict: ShardedStateDict,
+        is_loading: bool = False,
+        metadata: Optional[dict] = None,
     ):
         if is_loading:
             self.init_state_fn(self.optimizer, self.config)
