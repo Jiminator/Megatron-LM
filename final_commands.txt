@@ -50,6 +50,7 @@ cd apex
 pip uninstall torch torchvision torchaudio -y
 pip install torch==2.7.1+cu118 torchvision==0.22.1+cu118 --extra-index-url https://download.pytorch.org/whl/cu118
 pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext" --config-settings "--build-option=--cuda_ext" ./
+pip install psutil
 cd ../
 mkdir -p ./oscar
 cd ./oscar
