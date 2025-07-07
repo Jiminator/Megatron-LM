@@ -69,7 +69,7 @@ EVAL_AND_LOGGING_ARGS=(
     --eval-interval 1000 
     --save $CHECKPOINT_PATH 
     --load $CHECKPOINT_PATH 
-    --eval-iters 40
+    --eval-iters 10
     --tensorboard-dir $TENSORBOARD_LOGS_PATH 
 )
 
@@ -79,3 +79,6 @@ torchrun ${DISTRIBUTED_ARGS[@]} pretrain_gpt.py \
     ${MODEL_PARALLEL_ARGS[@]} \
     ${DATA_ARGS[@]} \
     ${EVAL_AND_LOGGING_ARGS[@]}
+
+rm -rf $CHECKPOINT_PATH
+mkdir $CHECKPOINT_PATH
