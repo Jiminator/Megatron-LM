@@ -309,7 +309,7 @@ def finalize_model_grads(model: List[torch.nn.Module], num_tokens: Optional[torc
 
     # All-reduce layer-norm grads (for sequence parallelism) and non-tensor parallel modules.
     if config.timers is not None:
-        config.timers('non-tensor-parallel-grads-all-reduce', log_level=1).start(
+        config.timers('non-tensor-parallel-grads-all-reduce', log_level=0).start(
             barrier=config.barrier_with_L1_time
         )
     _allreduce_non_tensor_model_parallel_grads(model, config)
@@ -318,7 +318,7 @@ def finalize_model_grads(model: List[torch.nn.Module], num_tokens: Optional[torc
 
     # All-reduce embedding grads (for pipeline parallelism).
     if config.timers is not None:
-        config.timers('embedding-grads-all-reduce', log_level=1).start(
+        config.timers('embedding-grads-all-reduce', log_level=0).start(
             barrier=config.barrier_with_L1_time
         )
     _allreduce_embedding_grads(model, config)

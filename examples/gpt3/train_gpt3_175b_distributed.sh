@@ -26,7 +26,7 @@ DISTRIBUTED_ARGS=(
 )
 
 GPT_MODEL_ARGS=(
-    --num-layers 1 
+    --num-layers 8 
     --hidden-size 512 
     --num-attention-heads 8 
     --seq-length 256
@@ -37,7 +37,7 @@ GPT_MODEL_ARGS=(
 TRAINING_ARGS=(
     --micro-batch-size 4 
     --global-batch-size 64 
-    --train-iters 10 
+    --train-iters 3 
     --weight-decay 0.1 
     --adam-beta1 0.9 
     --adam-beta2 0.95 
@@ -69,7 +69,7 @@ EVAL_AND_LOGGING_ARGS=(
     --eval-interval 1000 
     --save $CHECKPOINT_PATH 
     --load $CHECKPOINT_PATH 
-    --eval-iters 10
+    --eval-iters 0
     --tensorboard-dir $TENSORBOARD_LOGS_PATH 
 )
 

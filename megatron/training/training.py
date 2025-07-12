@@ -1417,8 +1417,8 @@ def train_step(forward_step_func, data_iterator, model, optimizer, opt_param_sch
         unwrapped_model.cancel_gradients_last_layer(args.curr_iteration)
 
     # Update parameters.
-
-    timers('optimizer', log_level=1).start(barrier=args.barrier_with_L1_time)
+    print("UPDATING PARAMETERS AND RUNNING OPTIMIZER STEP")
+    timers('optimizer', log_level=0).start(barrier=args.barrier_with_L1_time)
     update_successful, grad_norm, num_zeros_in_grad = optimizer.step()
     timers('optimizer').stop()
 
@@ -1563,6 +1563,7 @@ def training_log(
         'backward-send-backward-recv',
         'forward-backward-send-forward-backward-recv',
         'layernorm-grads-all-reduce',
+        'non-tensor-parallel-grads-all-reduce',
         'embedding-grads-all-reduce',
         'all-grads-sync',
         'params-all-gather',
@@ -1763,6 +1764,7 @@ def training_log(
                 report_theoretical_memory(args, num_microbatches=num_microbatches, verbose=True)
             report_memory(f'(after {iteration} iterations)')
             report_memory_flag = False
+        print("LOGGING ALL TIMERS")
         timers.log(timers_to_log, normalizer=args.log_interval)
 
     return report_memory_flag

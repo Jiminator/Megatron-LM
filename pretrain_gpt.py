@@ -44,7 +44,7 @@ from megatron.training.datasets.sft_dataset import SFTDataset
 
 import megatron.legacy.model  # isort: skip
 
-# NOTE: Loading `megatron.legacy.model` earlier fails due to circular import
+from megatron.core.models.gpt.gpt_model import print_layer_times, print_memory_deltas
 
 try:
     from megatron.post_training.arguments import add_modelopt_args, modelopt_args_enabled
@@ -368,3 +368,7 @@ if __name__ == "__main__":
         extra_args_provider=add_modelopt_args if has_nvidia_modelopt else None,
         store=store,
     )
+    print_layer_times()  # Print layer times after training
+    
+    if torch.distributed.get_rank() == 0:
+        print_memory_deltas()

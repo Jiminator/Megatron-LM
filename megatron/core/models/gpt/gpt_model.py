@@ -27,7 +27,60 @@ from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import WrappedTensor, deprecate_inference_params
+import time
 
+# --- MODIFIED: Dictionaries for timing and memory deltas ---
+layer_times = {}
+layer_memory_deltas = {}
+# -----------------------------------------------------------
+
+def forward_pre_hook(layer_name):
+    def hook(module, input):
+        if module.training:
+            torch.cuda.synchronize()
+            # Timing
+            layer_times[layer_name]['forward_start'] = time.time()
+            # --- NEW: Record memory allocated BEFORE the layer ---
+            layer_memory_deltas[layer_name]['forward_start_mem'] = torch.cuda.memory_allocated()
+    return hook
+
+def forward_hook(layer_name):
+    def hook(module, input, output):
+        if module.training:
+            torch.cuda.synchronize()
+            # Timing
+            layer_times[layer_name]['forward_end'] = time.time()
+            layer_times[layer_name]['forward_time'] = layer_times[layer_name]['forward_end'] - layer_times[layer_name]['forward_start']
+            
+            # --- NEW: Record memory allocated AFTER and calculate DELTA ---
+            mem_after = torch.cuda.memory_allocated()
+            mem_before = layer_memory_deltas[layer_name]['forward_start_mem']
+            layer_memory_deltas[layer_name]['forward_delta'] = mem_after - mem_before
+    return hook
+
+def backward_pre_hook(layer_name):
+    def hook(module, grad_output):
+        if module.training:
+            torch.cuda.synchronize()
+            # Timing
+            layer_times[layer_name]['backward_start'] = time.time()
+            # --- NEW: Record memory allocated BEFORE the backward pass ---
+            layer_memory_deltas[layer_name]['backward_start_mem'] = torch.cuda.memory_allocated()
+    return hook
+
+def backward_hook(layer_name):
+    def hook(module, grad_input, grad_output):
+        if module.training:
+            torch.cuda.synchronize()
+            # Timing
+            layer_times[layer_name]['backward_end'] = time.time()
+            layer_times[layer_name]['backward_time'] = layer_times[layer_name]['backward_end'] - layer_times[layer_name]['backward_start']
+            
+            # --- NEW: Record memory allocated AFTER and calculate DELTA ---
+            mem_after = torch.cuda.memory_allocated()
+            mem_before = layer_memory_deltas[layer_name]['backward_start_mem']
+            layer_memory_deltas[layer_name]['backward_delta'] = mem_after - mem_before
+    return hook
 
 class GPTModel(LanguageModule):
     """GPT Transformer language model.
@@ -220,6 +273,35 @@ class GPTModel(LanguageModule):
             log_config_to_disk(
                 self.config, self.state_dict(), prefix=f'{type(self).__name__}_init_ckpt'
             )
+        
+        #======  MODIFIED: Initialize dicts for each layer ======
+        if self.embedding:
+            embedding_layer_name = 'embedding_layer'
+            layer_times[embedding_layer_name] = {}
+            layer_memory_deltas[embedding_layer_name] = {}
+            self.embedding.register_forward_pre_hook(forward_pre_hook(embedding_layer_name))
+            self.embedding.register_forward_hook(forward_hook(embedding_layer_name))
+            self.embedding.register_full_backward_pre_hook(backward_pre_hook(embedding_layer_name))
+            self.embedding.register_full_backward_hook(backward_hook(embedding_layer_name))
+            
+        for i, layer in enumerate(self.decoder.layers):
+            layer_name = f'transformer_layer_{i}'
+            layer_times[layer_name] = {}
+            layer_memory_deltas[layer_name] = {}
+            layer.register_forward_pre_hook(forward_pre_hook(layer_name))
+            layer.register_forward_hook(forward_hook(layer_name))
+            layer.register_full_backward_pre_hook(backward_pre_hook(layer_name))
+            layer.register_full_backward_hook(backward_hook(layer_name))
+        
+        output_layer_name = 'output_layer'
+        layer_times[output_layer_name] = {}
+        layer_memory_deltas[output_layer_name] = {}
+        self.output_layer.register_forward_pre_hook(forward_pre_hook(output_layer_name))
+        self.output_layer.register_forward_hook(forward_hook(output_layer_name))
+        self.output_layer.register_full_backward_pre_hook(backward_pre_hook(output_layer_name))
+        self.output_layer.register_full_backward_hook(backward_hook(output_layer_name))
+        #==================================================================
+
 
     def set_input_tensor(self, input_tensor: Tensor) -> None:
         """Sets input tensor to the model.
@@ -468,6 +550,8 @@ class GPTModel(LanguageModule):
         logits, _ = self.output_layer(
             hidden_states, weight=output_weight, runtime_gather_output=runtime_gather_output
         )
+        
+        logits = logits.clone() 
 
         if has_config_logger_enabled(self.config):
             payload = OrderedDict(
@@ -560,3 +644,60 @@ class GPTModel(LanguageModule):
                 )
 
         return sharded_state_dict
+
+def print_layer_times():
+    """Prints the forward and backward pass execution times for each layer in milliseconds."""
+    total_forward = 0
+    total_backward = 0
+    # Ensure you are iterating over a sorted list of layers for consistent output
+    for layer_name, times in sorted(layer_times.items()):
+        if 'forward_time' in times:
+            # Convert seconds to milliseconds
+            forward_ms = times['forward_time'] * 1000
+            backward_ms = times['backward_time'] * 1000 if 'backward_time' in times else 0
+            
+            print(f"{layer_name}: Forward: {forward_ms}ms, Backward: {backward_ms}ms")
+            
+            total_forward += times['forward_time']
+            total_backward += times['backward_time'] if 'backward_time' in times else 0
+            
+    # Convert total times to milliseconds for the final print
+    total_forward_ms = total_forward * 1000
+    total_backward_ms = total_backward * 1000
+    
+    print("-" * 50) # Separator for readability
+    print(f"Total time: Forward: {total_forward_ms}ms, Backward: {total_backward_ms}ms")
+
+
+def print_memory_deltas():
+    """Prints the memory allocation change (delta) for each layer in Megabytes (MB)."""
+    print("-" * 70)
+    print("Memory Usage Deltas Per Layer (MB)")
+    print("-" * 70)
+    
+    total_forward_delta = 0
+    total_backward_delta = 0
+
+    # Ensure you are iterating over a sorted list of layers for consistent output
+    for layer_name, deltas in sorted(layer_memory_deltas.items()):
+        # Convert bytes to megabytes
+        forward_delta_mb = deltas.get('forward_delta', 0) / (1024 * 1024)
+        backward_delta_mb = deltas.get('backward_delta', 0) / (1024 * 1024)
+
+        total_forward_delta += deltas.get('forward_delta', 0)
+        total_backward_delta += deltas.get('backward_delta', 0)
+        
+        print(f"{layer_name:<25} Forward Δ: {forward_delta_mb:10.2f} MB,   Backward Δ: {backward_delta_mb:10.2f} MB")
+        
+    print("-" * 70)
+    total_forward_delta_mb = total_forward_delta / (1024 * 1024)
+    total_backward_delta_mb = total_backward_delta / (1024 * 1024)
+    print(f"{'Total Deltas':<25} Forward ΣΔ: {total_forward_delta_mb:10.2f} MB,   Backward ΣΔ: {total_backward_delta_mb:10.2f} MB")
+
+    # Also show the current and peak memory for context
+    current_mem_mb = torch.cuda.memory_allocated() / (1024 * 1024)
+    peak_mem_mb = torch.cuda.max_memory_reserved() / (1024 * 1024)
+    print(f"\n{'Current GPU Memory Allocated:':<35} {current_mem_mb:,.2f} MB")
+    print(f"{'Peak GPU Memory Reserved:':<35} {peak_mem_mb:,.2f} MB")
+    print("-" * 70)
+# ---------------------------------------------
