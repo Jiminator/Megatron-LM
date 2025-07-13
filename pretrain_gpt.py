@@ -367,8 +367,7 @@ if __name__ == "__main__":
         args_defaults={'tokenizer_type': 'GPT2BPETokenizer'},
         extra_args_provider=add_modelopt_args if has_nvidia_modelopt else None,
         store=store,
-    )
-    print_layer_times()  # Print layer times after training
-    
+    )    
     if torch.distributed.get_rank() == 0:
+        print_layer_times()  # Print layer times after training
         print_memory_deltas()
