@@ -43,6 +43,7 @@ TRAINING_ARGS=(
     --adam-beta2 0.95 
     --init-method-std 0.006 
     --clip-grad 1.0 
+    --fp16
     --lr 6.0e-5 
     --lr-decay-style cosine 
     --min-lr 6.0e-6
@@ -67,11 +68,12 @@ EVAL_AND_LOGGING_ARGS=(
     --log-interval 1
     --save-interval 1000 
     --eval-interval 1000 
-    --save $CHECKPOINT_PATH 
-    --load $CHECKPOINT_PATH 
     --eval-iters 0
     --tensorboard-dir $TENSORBOARD_LOGS_PATH 
 )
+
+rm -rf $CHECKPOINT_PATH
+mkdir $CHECKPOINT_PATH
 
 torchrun ${DISTRIBUTED_ARGS[@]} pretrain_gpt.py \
     ${GPT_MODEL_ARGS[@]} \
@@ -81,4 +83,3 @@ torchrun ${DISTRIBUTED_ARGS[@]} pretrain_gpt.py \
     ${EVAL_AND_LOGGING_ARGS[@]}
 
 rm -rf $CHECKPOINT_PATH
-mkdir $CHECKPOINT_PATH

@@ -66,6 +66,8 @@ python3 Megatron-LM/tools/preprocess_data.py --input ./oscar/oscar-1GB.jsonl --o
 mkdir ckpt
 mkdir tensorboard
 cd Megatron-LM/
-export TORCHDYNAMO_DISABLE=1
+echo 'export TORCHDYNAMO_DISABLE=1' >> ~/.bashrc
+source ~/.bashrc
+conda activate llm
 bash examples/gpt3/train_gpt3_175b_distributed.sh 
 cd ../

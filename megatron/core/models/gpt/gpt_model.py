@@ -275,31 +275,33 @@ class GPTModel(LanguageModule):
             )
         
         #======  MODIFIED: Initialize dicts for each layer ======
-        if self.embedding:
-            embedding_layer_name = 'embedding_layer'
-            layer_times[embedding_layer_name] = {}
-            layer_memory_deltas[embedding_layer_name] = {}
-            self.embedding.register_forward_pre_hook(forward_pre_hook(embedding_layer_name))
-            self.embedding.register_forward_hook(forward_hook(embedding_layer_name))
-            self.embedding.register_full_backward_pre_hook(backward_pre_hook(embedding_layer_name))
-            self.embedding.register_full_backward_hook(backward_hook(embedding_layer_name))
+        if self.post_process or self.mtp_process:
+            if hasattr(self, 'embedding'):
+                embedding_layer_name = 'embedding_layer'
+                layer_times[embedding_layer_name] = {}
+                layer_memory_deltas[embedding_layer_name] = {}
+                self.embedding.register_forward_pre_hook(forward_pre_hook(embedding_layer_name))
+                self.embedding.register_forward_hook(forward_hook(embedding_layer_name))
+                self.embedding.register_full_backward_pre_hook(backward_pre_hook(embedding_layer_name))
+                self.embedding.register_full_backward_hook(backward_hook(embedding_layer_name))
+                
+            for i, layer in enumerate(self.decoder.layers):
+                layer_name = f'transformer_layer_{i}'
+                layer_times[layer_name] = {}
+                layer_memory_deltas[layer_name] = {}
+                layer.register_forward_pre_hook(forward_pre_hook(layer_name))
+                layer.register_forward_hook(forward_hook(layer_name))
+                layer.register_full_backward_pre_hook(backward_pre_hook(layer_name))
+                layer.register_full_backward_hook(backward_hook(layer_name))
             
-        for i, layer in enumerate(self.decoder.layers):
-            layer_name = f'transformer_layer_{i}'
-            layer_times[layer_name] = {}
-            layer_memory_deltas[layer_name] = {}
-            layer.register_forward_pre_hook(forward_pre_hook(layer_name))
-            layer.register_forward_hook(forward_hook(layer_name))
-            layer.register_full_backward_pre_hook(backward_pre_hook(layer_name))
-            layer.register_full_backward_hook(backward_hook(layer_name))
-        
-        output_layer_name = 'output_layer'
-        layer_times[output_layer_name] = {}
-        layer_memory_deltas[output_layer_name] = {}
-        self.output_layer.register_forward_pre_hook(forward_pre_hook(output_layer_name))
-        self.output_layer.register_forward_hook(forward_hook(output_layer_name))
-        self.output_layer.register_full_backward_pre_hook(backward_pre_hook(output_layer_name))
-        self.output_layer.register_full_backward_hook(backward_hook(output_layer_name))
+            if hasattr(self, 'output_layer'):
+                output_layer_name = 'output_layer'
+                layer_times[output_layer_name] = {}
+                layer_memory_deltas[output_layer_name] = {}
+                self.output_layer.register_forward_pre_hook(forward_pre_hook(output_layer_name))
+                self.output_layer.register_forward_hook(forward_hook(output_layer_name))
+                self.output_layer.register_full_backward_pre_hook(backward_pre_hook(output_layer_name))
+                self.output_layer.register_full_backward_hook(backward_hook(output_layer_name))
         #==================================================================
 
 
