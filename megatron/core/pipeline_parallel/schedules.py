@@ -484,7 +484,7 @@ def forward_backward_no_pipelining(
 
     config = get_model_config(model)
     if config.timers is not None:
-        config.timers('forward-backward', log_level=1).start(barrier=config.barrier_with_L1_time)
+        config.timers('forward-backward', log_level=0).start(barrier=config.barrier_with_L1_time)
 
     no_sync_func = config.no_sync_func
     if no_sync_func is None:
@@ -735,7 +735,7 @@ def forward_backward_pipelining_with_interleaving(
         embedding_module = clear_embedding_activation_buffer(config, model)
 
     if config.timers is not None:
-        config.timers('forward-backward', log_level=1).start(barrier=config.barrier_with_L1_time)
+        config.timers('forward-backward', log_level=0).start(barrier=config.barrier_with_L1_time)
 
     # Disable async grad reductions
     no_sync_func = config.no_sync_func
@@ -1789,7 +1789,7 @@ def forward_backward_pipelining_without_interleaving(
         embedding_module = clear_embedding_activation_buffer(config, model)
 
     if config.timers is not None:
-        config.timers('forward-backward', log_level=1).start(barrier=config.barrier_with_L1_time)
+        config.timers('forward-backward', log_level=0).start(barrier=config.barrier_with_L1_time)
 
     # Disable async grad reductions
     no_sync_func = config.no_sync_func

@@ -51,7 +51,7 @@ def forward_hook(layer_name):
             # Timing
             layer_times[layer_name]['forward_end'] = time.time()
             layer_times[layer_name]['forward_time'] = layer_times[layer_name]['forward_end'] - layer_times[layer_name]['forward_start']
-            
+            print("Layer:", layer_name, "Forward time:", layer_times[layer_name]['forward_time'] * 1000, "ms")
             # --- NEW: Record memory allocated AFTER and calculate DELTA ---
             mem_after = torch.cuda.memory_allocated()
             mem_before = layer_memory_deltas[layer_name]['forward_start_mem']
@@ -75,7 +75,7 @@ def backward_hook(layer_name):
             # Timing
             layer_times[layer_name]['backward_end'] = time.time()
             layer_times[layer_name]['backward_time'] = layer_times[layer_name]['backward_end'] - layer_times[layer_name]['backward_start']
-            
+            print("Layer:", layer_name, "Backward time:", layer_times[layer_name]['backward_time'] * 1000, "ms")
             # --- NEW: Record memory allocated AFTER and calculate DELTA ---
             mem_after = torch.cuda.memory_allocated()
             mem_before = layer_memory_deltas[layer_name]['backward_start_mem']

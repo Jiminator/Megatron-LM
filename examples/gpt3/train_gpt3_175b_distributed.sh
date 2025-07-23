@@ -8,7 +8,7 @@ GPUS_PER_NODE=1
 # Change for multinode config
 MASTER_ADDR=128.105.144.57
 MASTER_PORT=6000
-NUM_NODES=2
+NUM_NODES=1
 WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
 
 CHECKPOINT_PATH=/users/jimmys2/ckpt
@@ -48,12 +48,12 @@ TRAINING_ARGS=(
     --lr-decay-style cosine 
     --min-lr 6.0e-6
     --lr-warmup-fraction .01 
-    --lr-decay-iters 8 
+    --lr-decay-iters 1 
     --transformer-impl local
 )
 
 MODEL_PARALLEL_ARGS=(
-	--tensor-model-parallel-size 2 
+	--tensor-model-parallel-size 1 
 	--pipeline-model-parallel-size 1 
 )
 
