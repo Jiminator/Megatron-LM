@@ -6,7 +6,7 @@ export CUDA_DEVICE_MAX_CONNECTIONS=1
 #export LOG_LEVEL=${LOG_LEVEL:-INFO}
 #export NCCL_IB_TIMEOUT=${NCCL_IB_TIMEOUT:-19}
 #export NVTE_FWD_LAYERNORM_SM_MARGIN=${NVTE_FWD_LAYERNORM_SM_MARGIN:-16}
-#export NVTE_BWD_LAYERNORM_SM_MARGIN=${NVTE_BWD_LAYERNORM_SM_MARGIN:-16}
+#export NVTE_BWD_LAYERNORM_SM_MARGIN=z${NVTE_BWD_LAYERNORM_SM_MARGIN:-16}
 #export NCCL_P2P_NET_CHUNKSIZE=${NCCL_P2P_NET_CHUNKSIZE:-2097152}
 #export NCCL_AVOID_RECORD_STREAMS=${NCCL_AVOID_RECORD_STREAMS:-1}
 
@@ -20,25 +20,33 @@ DATA_ARG=${4:-"MOCK"}     # Data prefix, or "MOCK"
 # mkdir -p "$(dirname "$TENSORBOARD_LOGS_PATH")"
 
 # Distributed training setup
-GPUS_PER_NODE=1
-NUM_NODES=2
-MASTER_ADDR=128.105.144.57
-MASTER_PORT=6000
-WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
+# echo "NODELIST=${SLURM_NODELIST}" 
+# export NUM_NODES=${NUM_NODES:-$SLURM_NNODES}
+# echo "NUM_NODES=${NUM_NODES}"
+# export GPUS_PER_NODE=${GPUS_PER_NODE:-$SLURM_GPUS_ON_NODE}
+# echo "GPUS_PER_NODE=${GPUS_PER_NODE}"
+# export MASTER_ADDR=$(scontrol show hostname $SLURM_NODELIST | head -n 1)
+# echo "MASTER_ADDR=${MASTER_ADDR}"
+# export MASTER_PORT=${MASTER_PORT:-6000}
+# echo "MASTER_PORT=${MASTER_PORT}"
+# export NODE_RANK=${SLURM_NODEID}
+# echo "NODE_RANK=${NODE_RANK}"
+# export WORLD_SIZE=$(($GPUS_PER_NODE*$NUM_NODES))
+# echo "WORLD_SIZE=${WORLD_SIZE}"
 
 # Path to the pretrain_gpt.py script, assuming this script is run from the root of the Megatron-LM repository
 PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 
 # Fixed model and training parameters
-TP_SIZE=1     
-CP_SIZE=1     
-PP_SIZE=1     
-MICRO_BATCH_SIZE=1
-GLOBAL_BATCH_SIZE=2
-NUM_LAYERS=8  
+export TP_SIZE=${TP_SIZE:-$WORLD_SIZE}
+export CP_SIZE=${CP_SIZE:-1}
+export PP_SIZE=${PP_SIZE:-1}
+export MICRO_BATCH_SIZE=${MICRO_BATCH_SIZE:-1}
+export GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-($MICRO_BATCH_SIZE)}
+export NUM_LAYERS=${NUM_LAYERS:-32}
 DTYPE="fp16"
-SEQ_LENGTH=512
-MAX_POSITION_EMBEDDINGS=512
+SEQ_LENGTH=2048
+MAX_POSITION_EMBEDDINGS=8192
 # SEQ_LENGTH=8192
 # MAX_POSITION_EMBEDDINGS=8192
 
@@ -59,12 +67,12 @@ DISTRIBUTED_ARGS=(
 MODEL_ARGS=(
     --use-mcore-models
     --num-layers $NUM_LAYERS
-    --hidden-size 512
-    --ffn-hidden-size 1792
-    --num-attention-heads 4
+    --hidden-size 4096
+    --ffn-hidden-size 14336
+    --num-attention-heads 32
     --group-query-attention
-    --num-query-groups 1
-    --kv-channels 16
+    --num-query-groups 8
+    --kv-channels 128
     --seq-length $SEQ_LENGTH
     --max-position-embeddings $MAX_POSITION_EMBEDDINGS
     --position-embedding-type rope
@@ -120,7 +128,7 @@ fi
 MODEL_PARALLEL_ARGS=(
     --tensor-model-parallel-size $TP_SIZE
     --context-parallel-size $CP_SIZE
-    # --pipeline-model-parallel-size $PP_SIZE # Not explicitly set in llama script options, assume 1 if not multi-node PP
+    --pipeline-model-parallel-size $PP_SIZE # Not explicitly set in llama script options, assume 1 if not multi-node PP
     --sequence-parallel  # Always enable sequence parallelism with TP_SIZE=2
 )
 
@@ -187,29 +195,59 @@ if [ ! -f "$PRETRAIN_SCRIPT_PATH" ]; then
     exit 1
 fi
 
-LOG_DIR="logs/"
+# LOG_DIR="logs"
 mkdir -p $LOG_DIR
-LOCAL_LOG="$LOG_DIR/node$NODE_RANK.log"
-CONSOLIDATED_LOG="$LOG_DIR/all_nodes.log"
+# LOCAL_LOG="$LOG_DIR/node$NODE_RANK.log"
+# CONSOLIDATED_LOG="$LOG_DIR/all_nodes_tp_{$TP_SIZE}_bs_{$MICRO_BATCH_SIZE}.log"
+# LOCAL_LOG="$LOG_DIR/profiling2.log"
+# CONSOLIDATED_LOG="$LOG_DIR/all_nodes_profiling2.log"
+export STEP3=${STEP3:-0}
+LOCAL_LOG="$LOG_DIR/local_log_LAYERS_{$NUM_LAYERS}_tp_{$TP_SIZE}_bs_{$MICRO_BATCH_SIZE}_STEP3_{$STEP3}.log"
+CONSOLIDATED_LOG="$LOG_DIR/all_nodes_LAYERS_{$NUM_LAYERS}_tp_{$TP_SIZE}_bs_{$MICRO_BATCH_SIZE}_STEP3_{$STEP3}.log"
 
-torchrun ${DISTRIBUTED_ARGS[@]} \
-    "$PRETRAIN_SCRIPT_PATH" \
-    ${MODEL_ARGS[@]} \
-    ${TRAINING_ARGS[@]} \
-    ${DTYPE_ARGS[@]} \
-    ${MODEL_PARALLEL_ARGS[@]} \
-    ${DATA_ARGS_LIST[@]} \
-    ${EVAL_AND_LOGGING_ARGS[@]} | tee $LOCAL_LOG
 
+# nvidia-smi --query-gpu=timestamp,index,memory.used --format=csv,nounits -l 1 > gpu_mem_usage_$NODE_RANK.csv &
+# NVIDIA_SMI_PID=$!
+
+# torchrun ${DISTRIBUTED_ARGS[@]} \
+#     "$PRETRAIN_SCRIPT_PATH" \
+#     ${MODEL_ARGS[@]} \
+#     ${TRAINING_ARGS[@]} \
+#     ${DTYPE_ARGS[@]} \
+#     ${MODEL_PARALLEL_ARGS[@]} \
+#     ${DATA_ARGS_LIST[@]} \
+#     ${EVAL_AND_LOGGING_ARGS[@]} --no-post-process | tee $LOCAL_LOG
+
+if [ "$STEP3" -eq 1 ]; then
+    torchrun ${DISTRIBUTED_ARGS[@]} \
+        "$PRETRAIN_SCRIPT_PATH" \
+        ${MODEL_ARGS[@]} \
+        ${TRAINING_ARGS[@]} \
+        ${DTYPE_ARGS[@]} \
+        ${MODEL_PARALLEL_ARGS[@]} \
+        ${DATA_ARGS_LIST[@]} \
+        ${EVAL_AND_LOGGING_ARGS[@]} --no-post-process | tee $LOCAL_LOG
+else
+    torchrun ${DISTRIBUTED_ARGS[@]} \
+        "$PRETRAIN_SCRIPT_PATH" \
+        ${MODEL_ARGS[@]} \
+        ${TRAINING_ARGS[@]} \
+        ${DTYPE_ARGS[@]} \
+        ${MODEL_PARALLEL_ARGS[@]} \
+        ${DATA_ARGS_LIST[@]} \
+        ${EVAL_AND_LOGGING_ARGS[@]} | tee $LOCAL_LOG
+fi
+# | tee $LOCAL_LOG
 # Post-processing: If this is node-2, send log to node-1 after training
 if [ "$NODE_RANK" -eq 0 ]; then
     echo "Node 0 saving consolidated log at $CONSOLIDATED_LOG"
     cp "$LOCAL_LOG" "$CONSOLIDATED_LOG"
 else
     echo "Node $NODE_RANK appending its log to node 0"
-    ssh jimmys2@node-1 "cat >> $CONSOLIDATED_LOG" < "$LOCAL_LOG"
+    MASTER_HOSTNAME=$MASTER_ADDR
+    echo "MASTER_HOSTNAME=${MASTER_HOSTNAME}"
+    ssh jshong@$MASTER_HOSTNAME "cat >> $CONSOLIDATED_LOG" < "$LOCAL_LOG"
 fi
-
 
 # if [ "$NODE_RANK" -eq 0 ]; then
 #     torchrun ${DISTRIBUTED_ARGS[@]} \
@@ -230,4 +268,6 @@ fi
 #         ${DATA_ARGS_LIST[@]} \
 #         ${EVAL_AND_LOGGING_ARGS[@]} | ssh jimmys2@node-1 "cat >> /users/jimmys2/Megatron-LM/test/all_nodes.log"
 # fi
+# kill $NVIDIA_SMI_PID
+# awk -F',' 'NR>1{mem[$2]=$3>mem[$2]?$3:mem[$2]} END{for (i in mem) print "GPU " i ": " mem[i] " MiB"}' gpu_mem_usage_$NODE_RANK.csv
 set +x
