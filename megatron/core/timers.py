@@ -320,6 +320,33 @@ class Timers:
                     (name + ' ').ljust(48, '.'), min_time, max_time
                 )
         return output_string
+    
+    def _get_global_avg_min_max_time(self, names, reset, barrier, normalizer):
+        """Report average of min and max times across all ranks."""
+
+        rank_name_to_time = self._get_elapsed_time_all_ranks(names, reset, barrier)
+        name_to_avg_time = {}
+        for i, name in enumerate(names):
+            rank_to_time = rank_name_to_time[:, i]
+            # filter out the ones we did not have any timings for
+            rank_to_time = rank_to_time[rank_to_time > 0.0]
+            if rank_to_time.numel() > 0:
+                min_time = rank_to_time.min().item() / normalizer
+                max_time = rank_to_time.max().item() / normalizer
+                avg_time = (min_time + max_time) / 2
+                name_to_avg_time[name] = avg_time
+        return name_to_avg_time
+
+    def _get_global_avg_time_string(self, names, reset, barrier, normalizer):
+        """Report average of min/max times across all ranks."""
+        name_to_avg_time = self._get_global_avg_min_max_time(names, reset, barrier, normalizer)
+        if not name_to_avg_time:
+            return None
+        output_string = 'avg(min, max) time across ranks (ms):'
+        for name in name_to_avg_time:
+            avg_time = name_to_avg_time[name]
+            output_string += '\n    {}: {}'.format((name + ' ').ljust(48, '.'), avg_time)
+        return output_string
 
     def _get_all_ranks_time_string(self, names, reset, barrier, normalizer):
         """Report times across all ranks."""
@@ -375,8 +402,11 @@ class Timers:
             max_only = False
             if self._log_option == 'max':
                 max_only = True
-            output_string = self._get_global_min_max_time_string(
-                names, reset, barrier, normalizer / 1000.0, max_only
+            # output_string = self._get_global_min_max_time_string(
+            #     names, reset, barrier, normalizer / 1000.0, max_only
+            # )
+            output_string = self._get_global_avg_time_string(
+                names, reset, barrier, normalizer / 1000.0
             )
         elif self._log_option == 'all':
             output_string = self._get_all_ranks_time_string(

@@ -45,6 +45,8 @@ from megatron.training.datasets.sft_dataset import SFTDataset
 import megatron.legacy.model  # isort: skip
 
 from megatron.core.models.gpt.gpt_model import print_layer_times, print_memory_deltas
+from megatron.core.models.gpt.gpt_model import layer_times # Import the dictionary
+
 
 try:
     from megatron.post_training.arguments import add_modelopt_args, modelopt_args_enabled
@@ -56,6 +58,15 @@ except ImportError:
     has_nvidia_modelopt = False
 
 stimer = StragglerDetector()
+
+def add_memory_measurement_args(parser):
+    """Add memory measurement specific arguments."""
+    group = parser.add_argument_group(title='Memory Measurement')
+    group.add_argument('--no-pre-process', action='store_true',
+                       help='Do not include the embedding layer in the model.')
+    group.add_argument('--no-post-process', action='store_true',
+                       help='Do not include the final output layer in the model.')
+    return parser
 
 
 def model_provider(
@@ -74,6 +85,12 @@ def model_provider(
         Union[GPTModel, megatron.legacy.model.GPTModel]: The returned model
     """
     args = get_args()
+
+    # Override pre_process and post_process based on new CLI args
+    if args.no_pre_process:
+        pre_process = False
+    if args.no_post_process:
+        post_process = False
 
     if has_nvidia_modelopt and modelopt_args_enabled(args):  # [ModelOpt]
         return model_provider_modelopt(pre_process, post_process)
@@ -102,7 +119,7 @@ def model_provider(
 
         torch._C._cuda_attach_out_of_memory_observer(oom_observer)
 
-    print_rank_0('building GPT model ...')
+    print_rank_0(f'Building model with pre_process={pre_process}, post_process={post_process}')
     # Experimental loading arguments from yaml
     if args.yaml_cfg is not None:
         config = core_transformer_config_from_yaml(args, "language_model")
@@ -214,6 +231,13 @@ def loss_func(
             the data parallel ranks
     """
     args = get_args()
+    
+    if args.no_post_process:
+        # Just sum the entire hidden state tensor to get a single scalar loss.
+        dummy_loss = torch.sum(output_tensor)
+        num_tokens = loss_mask.numel() # Use a valid number of tokens
+        device = output_tensor.device
+        return (dummy_loss, num_tokens, {'dummy loss': torch.tensor([0.0, float(num_tokens)], device=device)})
 
     if has_nvidia_modelopt and modelopt_args_enabled(args):  # [ModelOpt]
         return loss_func_modelopt(loss_mask, output_tensor, model=model)
@@ -359,15 +383,66 @@ if __name__ == "__main__":
     # Optionally enable inprocess restart on pretrain
     pretrain, store = inprocess_restart.maybe_wrap_for_inprocess_restart(pretrain)
 
+    def extra_provider(parser):
+        # This function might already exist to add modelopt_args. Add to it.
+        if has_nvidia_modelopt:
+            parser = add_modelopt_args(parser)
+        parser = add_memory_measurement_args(parser)
+        return parser
+    
     pretrain(
         train_valid_test_datasets_provider,
         model_provider,
         ModelType.encoder_or_decoder,
         forward_step,
         args_defaults={'tokenizer_type': 'GPT2BPETokenizer'},
-        extra_args_provider=add_modelopt_args if has_nvidia_modelopt else None,
+        extra_args_provider=extra_provider if not has_nvidia_modelopt else add_memory_measurement_args,
         store=store,
-    )    
-    if torch.distributed.get_rank() == 0:
-        print_layer_times()  # Print layer times after training
-        print_memory_deltas()
+    )
+    peak_mem_bytes = torch.cuda.max_memory_reserved()
+    peak_mem_mb = peak_mem_bytes / (1024 * 1024)
+
+    if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+        # Gather peak memory from all pipeline stages
+        pp_world_size = parallel_state.get_pipeline_model_parallel_world_size()
+        gathered_mem_mb = [None for _ in range(pp_world_size)]
+        
+        torch.distributed.gather_object(
+            obj=peak_mem_mb,
+            object_gather_list=gathered_mem_mb if parallel_state.is_pipeline_last_stage() else None,
+            dst=parallel_state.get_pipeline_model_parallel_last_rank(),
+            group=parallel_state.get_pipeline_model_parallel_group()
+        )
+
+        if parallel_state.is_pipeline_last_stage():
+            print("\n" + "="*50)
+            print("--- PEAK MEMORY (ALL PIPELINE STAGES) ---")
+            for i, mem in enumerate(gathered_mem_mb):
+                # Assumes one pipeline stage per rank
+                print(f"Pipeline Stage {i} (Rank {i}): {mem:.2f} MB")
+            print("="*50 + "\n")
+            
+    else: # Fallback for PP_SIZE = 1
+        if torch.distributed.get_rank() == 0:
+            print("\n" + "="*50)
+            print("--- PEAK MEMORY (ALL PIPELINE STAGES) ---")
+            print(f"Pipeline Stage 0 (Rank 0): {peak_mem_mb:.2f} MB")
+            # print(f"Peak memory reserved: {peak_mem_mb:.2f} MB")
+            print("="*50 + "\n")
+
+    if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+        # In pipeline parallel mode, gather dictionaries from all ranks
+        gathered_times = [None for _ in range(torch.distributed.get_world_size(group=parallel_state.get_pipeline_model_parallel_group()))]
+        torch.distributed.gather_object(
+            obj=layer_times,
+            object_gather_list=gathered_times if parallel_state.is_pipeline_last_stage() else None,
+            dst=parallel_state.get_pipeline_model_parallel_last_rank(),
+            group=parallel_state.get_pipeline_model_parallel_group()
+        )
+        if parallel_state.is_pipeline_last_stage():
+            # The last rank is responsible for printing the full report
+            print_layer_times(gathered_times)
+    else:
+        # Original behavior for non-pipelined models
+        if torch.distributed.get_rank() == 0:
+            print_layer_times()

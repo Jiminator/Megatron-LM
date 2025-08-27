@@ -51,7 +51,7 @@ def forward_hook(layer_name):
             # Timing
             layer_times[layer_name]['forward_end'] = time.time()
             layer_times[layer_name]['forward_time'] = layer_times[layer_name]['forward_end'] - layer_times[layer_name]['forward_start']
-            print("Layer:", layer_name, "Forward time:", layer_times[layer_name]['forward_time'] * 1000, "ms")
+            # print("Layer:", layer_name, "Forward time:", layer_times[layer_name]['forward_time'] * 1000, "ms")
             # --- NEW: Record memory allocated AFTER and calculate DELTA ---
             mem_after = torch.cuda.memory_allocated()
             mem_before = layer_memory_deltas[layer_name]['forward_start_mem']
@@ -75,7 +75,7 @@ def backward_hook(layer_name):
             # Timing
             layer_times[layer_name]['backward_end'] = time.time()
             layer_times[layer_name]['backward_time'] = layer_times[layer_name]['backward_end'] - layer_times[layer_name]['backward_start']
-            print("Layer:", layer_name, "Backward time:", layer_times[layer_name]['backward_time'] * 1000, "ms")
+            # print("Layer:", layer_name, "Backward time:", layer_times[layer_name]['backward_time'] * 1000, "ms")
             # --- NEW: Record memory allocated AFTER and calculate DELTA ---
             mem_after = torch.cuda.memory_allocated()
             mem_before = layer_memory_deltas[layer_name]['backward_start_mem']
@@ -275,33 +275,33 @@ class GPTModel(LanguageModule):
             )
         
         #======  MODIFIED: Initialize dicts for each layer ======
-        if self.post_process or self.mtp_process:
-            if hasattr(self, 'embedding'):
-                embedding_layer_name = 'embedding_layer'
-                layer_times[embedding_layer_name] = {}
-                layer_memory_deltas[embedding_layer_name] = {}
-                self.embedding.register_forward_pre_hook(forward_pre_hook(embedding_layer_name))
-                self.embedding.register_forward_hook(forward_hook(embedding_layer_name))
-                self.embedding.register_full_backward_pre_hook(backward_pre_hook(embedding_layer_name))
-                self.embedding.register_full_backward_hook(backward_hook(embedding_layer_name))
-                
-            for i, layer in enumerate(self.decoder.layers):
-                layer_name = f'transformer_layer_{i}'
-                layer_times[layer_name] = {}
-                layer_memory_deltas[layer_name] = {}
-                layer.register_forward_pre_hook(forward_pre_hook(layer_name))
-                layer.register_forward_hook(forward_hook(layer_name))
-                layer.register_full_backward_pre_hook(backward_pre_hook(layer_name))
-                layer.register_full_backward_hook(backward_hook(layer_name))
+        # if self.post_process or self.mtp_process:
+        if hasattr(self, 'embedding'):
+            embedding_layer_name = 'embedding_layer'
+            layer_times[embedding_layer_name] = {}
+            layer_memory_deltas[embedding_layer_name] = {}
+            self.embedding.register_forward_pre_hook(forward_pre_hook(embedding_layer_name))
+            self.embedding.register_forward_hook(forward_hook(embedding_layer_name))
+            self.embedding.register_full_backward_pre_hook(backward_pre_hook(embedding_layer_name))
+            self.embedding.register_full_backward_hook(backward_hook(embedding_layer_name))
             
-            if hasattr(self, 'output_layer'):
-                output_layer_name = 'output_layer'
-                layer_times[output_layer_name] = {}
-                layer_memory_deltas[output_layer_name] = {}
-                self.output_layer.register_forward_pre_hook(forward_pre_hook(output_layer_name))
-                self.output_layer.register_forward_hook(forward_hook(output_layer_name))
-                self.output_layer.register_full_backward_pre_hook(backward_pre_hook(output_layer_name))
-                self.output_layer.register_full_backward_hook(backward_hook(output_layer_name))
+        for i, layer in enumerate(self.decoder.layers):
+            layer_name = f'transformer_layer_{i}'
+            layer_times[layer_name] = {}
+            layer_memory_deltas[layer_name] = {}
+            layer.register_forward_pre_hook(forward_pre_hook(layer_name))
+            layer.register_forward_hook(forward_hook(layer_name))
+            layer.register_full_backward_pre_hook(backward_pre_hook(layer_name))
+            layer.register_full_backward_hook(backward_hook(layer_name))
+        
+        if hasattr(self, 'output_layer'):
+            output_layer_name = 'output_layer'
+            layer_times[output_layer_name] = {}
+            layer_memory_deltas[output_layer_name] = {}
+            self.output_layer.register_forward_pre_hook(forward_pre_hook(output_layer_name))
+            self.output_layer.register_forward_hook(forward_hook(output_layer_name))
+            self.output_layer.register_full_backward_pre_hook(backward_pre_hook(output_layer_name))
+            self.output_layer.register_full_backward_hook(backward_hook(output_layer_name))
         #==================================================================
 
 
@@ -533,7 +533,7 @@ class GPTModel(LanguageModule):
             )
 
         if not self.post_process:
-            return hidden_states
+            return hidden_states.clone()
 
         if (
             not self.training
@@ -647,28 +647,64 @@ class GPTModel(LanguageModule):
 
         return sharded_state_dict
 
-def print_layer_times():
+def print_layer_times(all_times_list=None): # Add an argument
     """Prints the forward and backward pass execution times for each layer in milliseconds."""
-    total_forward = 0
-    total_backward = 0
-    # Ensure you are iterating over a sorted list of layers for consistent output
-    for layer_name, times in sorted(layer_times.items()):
-        if 'forward_time' in times:
-            # Convert seconds to milliseconds
-            forward_ms = times['forward_time'] * 1000
-            backward_ms = times['backward_time'] * 1000 if 'backward_time' in times else 0
-            
-            print(f"{layer_name}: Forward: {forward_ms}ms, Backward: {backward_ms}ms")
-            
-            total_forward += times['forward_time']
-            total_backward += times['backward_time'] if 'backward_time' in times else 0
-            
-    # Convert total times to milliseconds for the final print
-    total_forward_ms = total_forward * 1000
-    total_backward_ms = total_backward * 1000
     
-    print("-" * 50) # Separator for readability
-    print(f"Total time: Forward: {total_forward_ms}ms, Backward: {total_backward_ms}ms")
+    if all_times_list is None: # Keep original behavior for single-GPU case
+        all_times_list = [layer_times]
+        
+    # --- NEW: Initialize lists to collect decoder runtimes ---
+    decoder_fwd_times = []
+    decoder_bwd_times = []
+
+    print("\n" + "="*70)
+    print("--- Layer Execution Times Report ---")
+    
+    
+    for rank, times_dict in enumerate(all_times_list):
+        if not times_dict: continue # Skip ranks with no timed layers
+        
+        print(f"\n--- [Pipeline Stage {rank}] ---")
+        total_forward = 0
+        total_backward = 0
+        # Ensure you are iterating over a sorted list of layers for consistent output
+        for layer_name, times in sorted(times_dict.items()):
+            if 'forward_time' in times:
+                # Convert seconds to milliseconds
+                forward_ms = times['forward_time'] * 1000
+                backward_ms = times['backward_time'] * 1000 if 'backward_time' in times else 0
+                
+                print(f"{layer_name}: Total {(forward_ms + backward_ms)} ms, Forward: {forward_ms:.2f}ms, Backward: {backward_ms:.2f}ms")
+                
+                total_forward += times.get('forward_time', 0)
+                total_backward += times.get('backward_time', 0)
+                
+                # --- NEW: Check if the layer is a decoder and collect its time ---
+                if layer_name.startswith('transformer_layer_'):
+                    decoder_fwd_times.append(times['forward_time'])
+                    decoder_bwd_times.append(times.get('backward_time', 0))
+        
+        # Convert total times to milliseconds for the final print
+        total_forward_ms = total_forward * 1000
+        total_backward_ms = total_backward * 1000
+        
+        print("-" * 25) # Separator for readability
+        print(f"Stage {rank} Total: {(total_forward_ms + total_backward_ms)} ms, Forward: {total_forward_ms:.2f}ms, Backward: {total_backward_ms:.2f}ms")
+        
+    # --- NEW: Calculate and print the average decoder layer time ---
+    if decoder_fwd_times:
+        avg_fwd_ms = (sum(decoder_fwd_times) / len(decoder_fwd_times)) * 1000
+        avg_bwd_ms = (sum(decoder_bwd_times) / len(decoder_bwd_times)) * 1000
+        avg_total_ms = avg_fwd_ms + avg_bwd_ms
+        
+        print("\n" + "-"*70)
+        print("--- Decoder Layer Summary ---")
+        print(f"Average Decoder Layer Runtime: "
+              f"Total: {avg_total_ms} ms | "
+              f"Forward: {avg_fwd_ms:.2f}ms | "
+              f"Backward: {avg_bwd_ms:.2f}ms")
+        
+    print("="*70 + "\n")
 
 
 def print_memory_deltas():

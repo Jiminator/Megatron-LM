@@ -364,7 +364,7 @@ def num_floating_point_operations(args, batch_size):
                     * query_projection_to_hidden_size_ratio
                 )
             )
-
+        num_layers = max(num_layers, 1)  # Ensure at least one layer is present.
         total_floating_point_operations = (
             batch_size
             * args.seq_length
@@ -1702,7 +1702,7 @@ def training_log(
         log_string += ' consumed samples: {:12d} |'.format(args.consumed_train_samples)
         if args.skipped_train_samples > 0:
             log_string += ' skipped samples: {:12d} |'.format(args.skipped_train_samples)
-        log_string += ' elapsed time per iteration (ms): {:.1f} |'.format(
+        log_string += ' elapsed time per iteration (ms): {} |'.format(
             elapsed_time_per_iteration * 1000.0
         )
         if args.log_throughput:
@@ -1724,13 +1724,13 @@ def training_log(
                 wandb_writer.log({'iter-energy/gpu': energy}, iteration)
                 wandb_writer.log({'power/gpu': power}, iteration)
         # Decoupled_learning_rate should be not None only on first and last pipeline stage.
-        log_string += f' learning rate: {learning_rate:.6E} |'
+        log_string += f' learning rate: {learning_rate or 0.0:.6E} |'
         if args.decoupled_lr is not None and (
             mpu.is_pipeline_first_stage(ignore_virtual=True)
             or mpu.is_pipeline_last_stage(ignore_virtual=True)
         ):
-            assert decoupled_learning_rate is not None
-            log_string += f' decoupled learning rate: {decoupled_learning_rate:.6E} |'
+            if decoupled_learning_rate is not None:
+                log_string += f' decoupled learning rate: {decoupled_learning_rate:.6E} |'
         else:
             assert decoupled_learning_rate is None
         log_string += f' global batch size: {batch_size:5d} |'

@@ -40,7 +40,7 @@ PRETRAIN_SCRIPT_PATH="pretrain_gpt.py"
 # Fixed model and training parameters
 export TP_SIZE=${TP_SIZE:-$WORLD_SIZE}
 export CP_SIZE=${CP_SIZE:-1}
-export PP_SIZE=${PP_SIZE:-$((WORLD_SIZE / TP_SIZE))}
+export PP_SIZE=${PP_SIZE:-1}
 export MICRO_BATCH_SIZE=${MICRO_BATCH_SIZE:-1}
 export GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE:-$MICRO_BATCH_SIZE}
 export NUM_LAYERS=${NUM_LAYERS:-32}

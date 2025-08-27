@@ -115,6 +115,7 @@ def compute_weight_and_optimizer_memory(args, verbose=False):
     embedding_size = args.hidden_size * args.padded_vocab_size
     final_layernorm = 2 * args.hidden_size
     if args.untie_embeddings_and_output_weights:
+        print("Using untied embeddings and output weights.")
         num_parameters_in_embedding_layers = 2 * embedding_size
     else:
         num_parameters_in_embedding_layers = embedding_size
@@ -134,19 +135,32 @@ def compute_weight_and_optimizer_memory(args, verbose=False):
     )
     if verbose:
         print(
-            f"Number of parameters in transformer block in billions: "
-            f"{num_parameters_in_transformer_block / 10**9: .2f}"
+            f"Number of parameters in embedding layer: "
+            f"{num_parameters_in_embedding_layers // 2}"
         )
+        print(
+            f"Number of parameters in transformer block: "
+            f"{num_parameters_in_transformer_block}"
+        )
+        if args.num_layers == 0:
+            print(
+                "Number of parameters in single decoder layer: 0"
+            )
+        else: 
+            print(
+                f"Number of parameters in single decoder layer: "
+                f"{num_parameters_in_transformer_block / args.num_layers}"
+            )
         if args.mtp_num_layers is not None:
             print(
-                f"Number of parameters in mtp block in billions: "
-                f"{num_parameters_in_mtp_block / 10**9: .2f}"
+                f"Number of parameters in mtp block: "
+                f"{num_parameters_in_mtp_block}"
             )
         print(
-            f"Number of parameters in embedding layers in billions: "
-            f"{num_parameters_in_embedding_layers / 10**9:.2f}"
+            f"Number of parameters in output layer: "
+            f"{num_parameters_in_embedding_layers // 2}"
         )
-        print(f"Total number of parameters in billions: {num_total_parameters / 10**9:.2f}")
+        print(f"Total number of parameters in billions: {num_total_parameters}")
 
     # Most loaded model shard has (1/pp_size transformer layers + 1 mtp block + 1 embedding layer) / tp_size.
     num_parameters_on_most_loaded_model_shard = (
